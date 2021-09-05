@@ -1,3 +1,4 @@
+use js_sys::Date;
 use rand::prelude::*;
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
@@ -12,6 +13,7 @@ extern "C" {
 const N_CHOICES: usize = 4;
 const MAX_FACTOR: usize = 5;
 const SUFFICIENT: usize = 2;
+const FAST_MILLISECONDS: f64 = 4000.0;
 
 enum Msg {
     ChoiceMade(usize),
@@ -33,6 +35,8 @@ struct Model {
     problem: Problem,
     choices: Vec<usize>,
     pairs: Vec<Vec<PairStatus>>,
+    prompt_time: Option<f64>,
+    feedback: Option<String>,
 }
 
 fn create_pairs_matrix() -> Vec<Vec<PairStatus>> {
@@ -49,12 +53,6 @@ fn create_pairs_matrix() -> Vec<Vec<PairStatus>> {
 
 impl Model {
     fn progress_bar(&self) -> Html {
-        let n_correct = self
-            .history
-            .iter()
-            .copied()
-            .filter(|(_, correct)| *correct)
-            .count();
         let check = "✅";
         let x_mar = "❌";
         let history_viz: Vec<&str> = self
@@ -95,21 +93,28 @@ impl Model {
 
     fn update_pairs(&mut self, correct: bool) {
         let (a, b) = self.problem;
-        let status = &self.pairs[a as usize][b as usize];
-        let adjust = if correct { 1 } else { -1 };
-        let new_status = match status {
-            PairStatus::Unknown => PairStatus::InProgress(adjust),
-            PairStatus::InProgress(n) => {
-                if n + adjust >= SUFFICIENT as i32 {
-                    PairStatus::Finished
-                } else {
-                    PairStatus::InProgress(n + adjust)
+        if correct
+            && self.prompt_time.is_some()
+            && Date::now() - self.prompt_time.unwrap() < FAST_MILLISECONDS
+        {
+            self.pairs[a as usize][b as usize] = PairStatus::Finished;
+        } else {
+            let status = &self.pairs[a as usize][b as usize];
+            let adjust = if correct { 1 } else { -1 };
+            let new_status = match status {
+                PairStatus::Unknown => PairStatus::InProgress(adjust),
+                PairStatus::InProgress(n) => {
+                    if n + adjust >= SUFFICIENT as i32 {
+                        PairStatus::Finished
+                    } else {
+                        PairStatus::InProgress(n + adjust)
+                    }
                 }
-            }
-            PairStatus::Finished => PairStatus::InProgress(SUFFICIENT as i32 + adjust),
-        };
-        console_log(&format!("self.pairs[{}][{}] <- {:?}", a, b, new_status));
-        self.pairs[a as usize][b as usize] = new_status;
+                PairStatus::Finished => PairStatus::InProgress(SUFFICIENT as i32 + adjust),
+            };
+            console_log(&format!("self.pairs[{}][{}] <- {:?}", a, b, new_status));
+            self.pairs[a as usize][b as usize] = new_status;
+        }
     }
 
     fn matrix_row(&self, i: usize) -> Html {
@@ -212,6 +217,8 @@ impl Component for Model {
             problem,
             choices,
             pairs: create_pairs_matrix(),
+            prompt_time: None,
+            feedback: None,
         }
     }
 
@@ -223,6 +230,7 @@ impl Component for Model {
                 let correct = response == answer;
                 self.history.push((self.problem, correct));
                 self.update_pairs(correct);
+                self.prompt_time = Some(Date::now());
                 let (problem, choices) = new_problem(Some(self));
                 self.problem = problem;
                 self.choices = choices;
@@ -258,6 +266,7 @@ impl Component for Model {
         html! {
             <div onkeypress=self.link.callback(Msg::KeyPressed)>
                 <div>{ self.progress_bar() }</div>
+                <div>{ self.feedback.as_ref().unwrap_or(&"".to_owned()) }</div>
                 <div>{ self.problem_display() }</div>
                 <div class="flex demo">{ self.choices_display() }</div>
                 <div>{ self.matrix_display() }</div>
