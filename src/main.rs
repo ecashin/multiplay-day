@@ -13,7 +13,7 @@ extern "C" {
 const N_CHOICES: usize = 4;
 const MAX_FACTOR: usize = 5;
 const SUFFICIENT: usize = 2;
-const FAST_MILLISECONDS: f64 = 4000.0;
+const FAST_MILLISECONDS: f64 = 2000.0;
 
 enum Msg {
     ChoiceMade(usize),
@@ -245,7 +245,7 @@ impl Component for Model {
                 let n = event.key().parse::<usize>();
                 match n {
                     Err(_) => false,
-                    Ok(n) => {
+                    Ok(n) if n > 0 => {
                         let i = n - 1;
                         if i < self.choices.len() {
                             self.update(Msg::ChoiceMade(self.choices[i]))
@@ -253,6 +253,7 @@ impl Component for Model {
                             false
                         }
                     }
+                    _ => false,
                 }
             }
         }
