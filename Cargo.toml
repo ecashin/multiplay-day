@@ -7,5 +7,6 @@ edition = "2018"
 
 [dependencies]
 getrandom = {version = "0.2.3", features = ["js"]}
+probability = "0.17.0"
 rand = "0.8.4"
 yew = "0.18.0"
