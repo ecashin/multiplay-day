@@ -1,29 +1,36 @@
-use probability::prelude::*;
 use rand::prelude::*;
+use wasm_bindgen::prelude::*;
 use yew::prelude::*;
+
+#[wasm_bindgen()]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console, js_name = "log")]
+    fn console_log(s: &str);
+}
 
 const N_REQUIRED: usize = 3;
 const N_CHOICES: usize = 4;
-const MAX_FACTOR: usize = 12;
-const SUFFICIENT: usize = 4;
+const MAX_FACTOR: usize = 5;
+const SUFFICIENT: usize = 2;
 
 enum Msg {
-    ChoiceMade(i32),
+    ChoiceMade(usize),
 }
 
+#[derive(Debug)]
 enum PairStatus {
     Unknown,
     InProgress(i32),
     Finished,
 }
 
-type Problem = (i32, i32);
+type Problem = (usize, usize);
 
 struct Model {
     link: ComponentLink<Self>,
     history: Vec<(Problem, bool)>,
     problem: Problem,
-    choices: Vec<i32>,
+    choices: Vec<usize>,
     pairs: Vec<Vec<PairStatus>>,
 }
 
@@ -66,6 +73,7 @@ impl Model {
             <p>{ format!("{} x {} = ...", self.problem.0, self.problem.1) }</p>
         }
     }
+
     fn choices_display(&self) -> Html {
         self.choices.iter().copied().map(|response| {
             html! {
@@ -76,12 +84,13 @@ impl Model {
         })
         .collect()
     }
+
     fn update_pairs(&mut self, correct: bool) {
         let (a, b) = self.problem;
         let status = &self.pairs[a as usize][b as usize];
         let adjust = if correct { 1 } else { -1 };
         let new_status = match status {
-            PairStatus::Unknown => PairStatus::InProgress(0),
+            PairStatus::Unknown => PairStatus::InProgress(adjust),
             PairStatus::InProgress(n) => {
                 if n + adjust >= SUFFICIENT as i32 {
                     PairStatus::Finished
@@ -91,41 +100,89 @@ impl Model {
             }
             PairStatus::Finished => PairStatus::InProgress(SUFFICIENT as i32 + adjust),
         };
+        console_log(&format!("self.pairs[{}][{}] <- {:?}", a, b, new_status));
         self.pairs[a as usize][b as usize] = new_status;
+    }
+
+    fn matrix_row(&self, i: usize) -> Html {
+        self.pairs[i]
+            .iter()
+            .map(|pair| {
+                let html_class = match pair {
+                    PairStatus::Unknown => "unknown",
+                    PairStatus::InProgress(_) => "in-progress",
+                    PairStatus::Finished => "finished",
+                };
+                let html_content = match pair {
+                    PairStatus::Unknown => 0,
+                    PairStatus::InProgress(n) => std::cmp::max(*n, 0) as usize,
+                    PairStatus::Finished => SUFFICIENT,
+                };
+                html! {
+                    <td class=html_class>{ html_content }</td>
+                }
+            })
+            .collect()
+    }
+
+    fn matrix_rows(&self) -> Html {
+        self.pairs
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                html! {
+                    <tr>{ self.matrix_row(i) }</tr>
+                }
+            })
+            .collect()
+    }
+
+    fn matrix_display(&self) -> Html {
+        html! {
+            <table class="pairs-progress">
+                { self.matrix_rows() }
+            </table>
+        }
     }
 }
 
 fn choose_choices(rng: &mut ThreadRng, model: Option<&Model>) -> Vec<Problem> {
     if let Some(model) = model {
-        let weights: Vec<f64> = model
+        let weighed_choices: Vec<usize> = model
             .pairs
             .iter()
             .flatten()
-            .map(|status| match status {
-                PairStatus::Unknown => SUFFICIENT as f64,
-                PairStatus::InProgress(n) => *n as f64,
-                PairStatus::Finished => 0.0,
+            .enumerate()
+            .map(|(i, status)| {
+                let n = match status {
+                    PairStatus::Unknown => SUFFICIENT,
+                    PairStatus::InProgress(n) => std::cmp::max(*n, 0) as usize,
+                    PairStatus::Finished => 0,
+                };
+                vec![i; n]
             })
+            .flatten()
             .collect();
-        let mut source = source::default();
-        let distribution = Categorical::new(&weights);
-        let mut sampler = Independent(&distribution, &mut source);
-        let samples = sampler.take(N_CHOICES).collect::<Vec<_>>();
-        samples
-            .iter()
-            .map(|i| ((i / MAX_FACTOR) as i32, (i % MAX_FACTOR) as i32))
-            .collect()
+        console_log(&format!("weighted_choices:{:?}", weighed_choices));
+        let mut chosen = vec![];
+        for _ in 0..N_CHOICES {
+            let i = rng.gen_range(0..weighed_choices.len());
+            let pair_index = weighed_choices[i];
+            chosen.push((pair_index / (MAX_FACTOR + 1), pair_index % (MAX_FACTOR + 1)));
+        }
+        console_log(&format!("chosen:{:?}", chosen));
+        chosen
     } else {
         let mut choices = vec![];
         for _ in 0..N_CHOICES {
-            let a = rng.gen_range(0..12);
-            let b = rng.gen_range(0..12);
+            let a = rng.gen_range(0..=MAX_FACTOR);
+            let b = rng.gen_range(0..=MAX_FACTOR);
             choices.push((a, b));
         }
         choices
     }
 }
-fn new_problem(model: Option<&Model>) -> ((i32, i32), Vec<i32>) {
+fn new_problem(model: Option<&Model>) -> (Problem, Vec<usize>) {
     let mut rng = rand::thread_rng();
     let choices = choose_choices(&mut rng, model);
     let problem_i = rng.gen_range(0..N_CHOICES);
@@ -174,6 +231,7 @@ impl Component for Model {
                 <div>{ self.progress_bar() }</div>
                 <div>{ self.problem_display() }</div>
                 <div>{ self.choices_display() }</div>
+                <div>{ self.matrix_display() }</div>
             </div>
         }
     }
