@@ -1,6 +1,7 @@
 use rand::prelude::*;
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
+use yew::KeyboardEvent;
 
 #[wasm_bindgen()]
 extern "C" {
@@ -15,6 +16,7 @@ const SUFFICIENT: usize = 2;
 
 enum Msg {
     ChoiceMade(usize),
+    KeyPressed(KeyboardEvent),
 }
 
 #[derive(Debug)]
@@ -209,6 +211,7 @@ impl Component for Model {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::ChoiceMade(response) => {
+                console_log(&format!("ChoiceMade:{}", response));
                 let answer = self.problem.0 * self.problem.1;
                 let correct = response == answer;
                 self.history.push((self.problem, correct));
@@ -217,6 +220,25 @@ impl Component for Model {
                 self.problem = problem;
                 self.choices = choices;
                 true
+            }
+            Msg::KeyPressed(event) => {
+                console_log(&format!(
+                    "KeyboardEvent:{:?} with key:{:?}",
+                    event,
+                    event.key()
+                ));
+                let n = event.key().parse::<usize>();
+                match n {
+                    Err(_) => false,
+                    Ok(n) => {
+                        let i = n - 1;
+                        if i < self.choices.len() {
+                            self.update(Msg::ChoiceMade(self.choices[i]))
+                        } else {
+                            false
+                        }
+                    }
+                }
             }
         }
     }
@@ -227,7 +249,7 @@ impl Component for Model {
 
     fn view(&self) -> Html {
         html! {
-            <div>
+            <div onkeypress=self.link.callback(Msg::KeyPressed)>
                 <div>{ self.progress_bar() }</div>
                 <div>{ self.problem_display() }</div>
                 <div>{ self.choices_display() }</div>
