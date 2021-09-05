@@ -1,3 +1,4 @@
+use rand::Rng;
 use yew::prelude::*;
 
 const N_REQUIRED: usize = 3;
@@ -7,23 +8,30 @@ enum Msg {
     ChoiceMade(i32),
 }
 
+type Problem = (i32, i32);
+
 struct Model {
     link: ComponentLink<Self>,
-    history: Vec<bool>,
-    problem: (i32, i32),
+    history: Vec<(Problem, bool)>,
+    problem: Problem,
     choices: Vec<i32>,
 }
 
 impl Model {
     fn progress_bar(&self) -> Html {
-        let n_correct = self.history.iter().copied().filter(|p| *p).count();
+        let n_correct = self
+            .history
+            .iter()
+            .copied()
+            .filter(|(_, correct)| *correct)
+            .count();
         let check = "✅";
         let x_mar = "❌";
         let history_viz: Vec<&str> = self
             .history
             .iter()
             .copied()
-            .map(|correct| if correct { check } else { x_mar })
+            .map(|(_, correct)| if correct { check } else { x_mar })
             .collect();
         html! {
             <span>
@@ -49,7 +57,17 @@ impl Model {
 }
 
 fn new_problem(_model: Option<&Model>) -> ((i32, i32), Vec<i32>) {
-    ((6, 4), vec![24, 2, 3, 4])
+    let mut rng = rand::thread_rng();
+    let mut choices = vec![];
+    for _ in 0..N_CHOICES {
+        let a = rng.gen_range(0..12);
+        let b = rng.gen_range(0..12);
+        choices.push((a, b));
+    }
+    let problem_i = rng.gen_range(0..N_CHOICES);
+    let answers = choices.iter().map(|(a, b)| a * b).collect();
+
+    (choices[problem_i], answers)
 }
 
 impl Component for Model {
@@ -71,7 +89,7 @@ impl Component for Model {
             Msg::ChoiceMade(response) => {
                 let answer = self.problem.0 * self.problem.1;
                 let correct = response == answer;
-                self.history.push(correct);
+                self.history.push((self.problem, correct));
                 let (problem, choices) = new_problem(Some(self));
                 self.problem = problem;
                 self.choices = choices;
