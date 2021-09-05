@@ -9,7 +9,6 @@ extern "C" {
     fn console_log(s: &str);
 }
 
-const N_REQUIRED: usize = 3;
 const N_CHOICES: usize = 4;
 const MAX_FACTOR: usize = 5;
 const SUFFICIENT: usize = 2;
@@ -65,8 +64,8 @@ impl Model {
             .map(|(_, correct)| if correct { check } else { x_mar })
             .collect();
         html! {
-            <span>
-                <p>{ format!("{} / {} - {}", n_correct, N_REQUIRED, history_viz.join("")) }</p>
+            <span class="progress-bar">
+                <p>{ history_viz.join("") }</p>
             </span>
         }
     }
@@ -77,14 +76,21 @@ impl Model {
     }
 
     fn choices_display(&self) -> Html {
-        self.choices.iter().copied().map(|response| {
-            html! {
-                <div>
-                    <button onclick=self.link.callback(move |_| Msg::ChoiceMade(response))>{ response }</button>
-                </div>
-            }
-        })
-        .collect()
+        self.choices
+            .iter()
+            .copied()
+            .map(|response| {
+                html! {
+                    <div>
+                        <span>
+                            <button class="flex"
+                                onclick=self.link.callback(move |_| Msg::ChoiceMade(response))
+                            >{ response }</button>
+                        </span>
+                    </div>
+                }
+            })
+            .collect()
     }
 
     fn update_pairs(&mut self, correct: bool) {
@@ -184,6 +190,7 @@ fn choose_choices(rng: &mut ThreadRng, model: Option<&Model>) -> Vec<Problem> {
         choices
     }
 }
+
 fn new_problem(model: Option<&Model>) -> (Problem, Vec<usize>) {
     let mut rng = rand::thread_rng();
     let choices = choose_choices(&mut rng, model);
@@ -252,7 +259,7 @@ impl Component for Model {
             <div onkeypress=self.link.callback(Msg::KeyPressed)>
                 <div>{ self.progress_bar() }</div>
                 <div>{ self.problem_display() }</div>
-                <div>{ self.choices_display() }</div>
+                <div class="flex demo">{ self.choices_display() }</div>
                 <div>{ self.matrix_display() }</div>
             </div>
         }
