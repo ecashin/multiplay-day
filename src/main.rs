@@ -36,6 +36,7 @@ const TIMINGS_HISTORY_LENGTH: usize = 5;
 
 enum Msg {
     ChoiceMade(usize),
+    ClearTimings,
     KeyPressed(KeyboardEvent),
 }
 
@@ -73,6 +74,16 @@ impl Timings {
             times[middle]
         } else {
             (times[middle] + times[middle - 1]) / 2.0
+        }
+    }
+
+    fn valid_or_new(self) -> Self {
+        let valid = self.response_time_history.len() == MAX_FACTOR + 1
+            && self.response_time_history[0].len() == MAX_FACTOR + 1;
+        if valid {
+            self
+        } else {
+            Self::new()
         }
     }
 }
@@ -346,7 +357,7 @@ impl Component for Model {
         let Json(tally) = storage.restore(STORAGE_KEY_TALLY);
         let tally = tally.unwrap_or(Tally::new()).valid_or_new();
         let Json(timings) = storage.restore(STORAGE_KEY_TIMINGS);
-        let timings = timings.unwrap_or(Timings::new());
+        let timings = timings.unwrap_or(Timings::new()).valid_or_new();
         let sounds = SOUND_FILES
             .iter()
             .map(|f| {
@@ -394,6 +405,11 @@ impl Component for Model {
                 self.choices = choices;
                 true
             }
+            Msg::ClearTimings => {
+                self.timings = Timings::new();
+                self.storage.store(STORAGE_KEY_TIMINGS, Json(&self.timings));
+                false
+            }
             Msg::KeyPressed(event) => {
                 console_log(&format!(
                     "KeyboardEvent:{:?} with key:{:?}",
@@ -427,6 +443,7 @@ impl Component for Model {
                 <div class="progress-bar">{ self.progress_bar() }</div>
                 <div>{ self.feedback.as_ref().unwrap_or(&"".to_owned()) }</div>
                 <div>{ self.problem_display() }</div>
+                <div><button onclick=self.link.callback(|_| Msg::ClearTimings)>{ "Clear Timings" }</button></div>
                 <div class="flex demo">{ self.choices_display() }</div>
                 <div>{ self.matrix_display() }</div>
                 <div>{ self.audio_elements() }</div>
