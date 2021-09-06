@@ -1,7 +1,10 @@
 use js_sys::Date;
 use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use yew::format::Json;
 use yew::prelude::*;
+use yew::services::storage::{Area, StorageService};
 use yew::KeyboardEvent;
 
 #[wasm_bindgen()]
@@ -11,13 +14,38 @@ extern "C" {
 }
 
 const N_CHOICES: usize = 4;
-const MAX_FACTOR: usize = 5;
+const MAX_FACTOR: usize = 12;
 const SUFFICIENT: usize = 2;
 const FAST_MILLISECONDS: f64 = 2000.0;
+// https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
+const STORAGE_KEY: &'static str = "net.noserose.multiplay";
 
 enum Msg {
     ChoiceMade(usize),
     KeyPressed(KeyboardEvent),
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Tally {
+    correct_counts: Vec<Vec<i32>>,
+}
+
+impl Tally {
+    fn new() -> Self {
+        let correct_counts = vec![vec![0; MAX_FACTOR + 1]; MAX_FACTOR + 1];
+        Tally { correct_counts }
+    }
+
+    fn valid_or_new(self) -> Self {
+        let valid = self.correct_counts.len() == MAX_FACTOR + 1
+            && self.correct_counts[0].len() == MAX_FACTOR + 1;
+        if valid {
+            self
+        } else {
+            console_log("Ignoring invalid tally from local storage");
+            Self::new()
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -37,6 +65,8 @@ struct Model {
     pairs: Vec<Vec<PairStatus>>,
     prompt_time: Option<f64>,
     feedback: Option<String>,
+    storage: StorageService,
+    tally: Tally,
 }
 
 fn create_pairs_matrix() -> Vec<Vec<PairStatus>> {
@@ -67,6 +97,7 @@ impl Model {
             </span>
         }
     }
+
     fn problem_display(&self) -> Html {
         html! {
             <p>{ format!("{} x {} = ...", self.problem.0, self.problem.1) }</p>
@@ -89,6 +120,12 @@ impl Model {
                 }
             })
             .collect()
+    }
+
+    fn update_storage(&mut self, correct: bool) {
+        let (a, b) = self.problem;
+        self.tally.correct_counts[a][b] += if correct { 1 } else { -1 };
+        self.storage.store(STORAGE_KEY, Json(&self.tally));
     }
 
     fn update_pairs(&mut self, correct: bool) {
@@ -167,12 +204,18 @@ fn choose_choices(rng: &mut ThreadRng, model: Option<&Model>) -> Vec<Problem> {
             .flatten()
             .enumerate()
             .map(|(i, status)| {
-                let n = match status {
+                let mut n = match status {
                     PairStatus::Unknown => SUFFICIENT,
                     PairStatus::InProgress(n) => std::cmp::max(*n, 0) as usize,
                     PairStatus::Finished => 0,
                 };
-                vec![i; n]
+                let m = model.tally.correct_counts[i / (MAX_FACTOR + 1)][i % (MAX_FACTOR + 1)];
+                if m < 0 {
+                    n += -m as usize;
+                } else if m > 0 && n > 1 {
+                    n -= 1;
+                }
+                vec![i; n + 1]
             })
             .flatten()
             .collect();
@@ -211,6 +254,9 @@ impl Component for Model {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let (problem, choices) = new_problem(None);
+        let storage = StorageService::new(Area::Local).unwrap();
+        let Json(tally) = storage.restore(STORAGE_KEY);
+        let tally = tally.unwrap_or(Tally::new()).valid_or_new();
         Self {
             link,
             history: vec![],
@@ -219,6 +265,8 @@ impl Component for Model {
             pairs: create_pairs_matrix(),
             prompt_time: None,
             feedback: None,
+            storage,
+            tally,
         }
     }
 
@@ -230,6 +278,7 @@ impl Component for Model {
                 let correct = response == answer;
                 self.history.push((self.problem, correct));
                 self.update_pairs(correct);
+                self.update_storage(correct);
                 self.prompt_time = Some(Date::now());
                 let (problem, choices) = new_problem(Some(self));
                 self.problem = problem;
@@ -266,7 +315,7 @@ impl Component for Model {
     fn view(&self) -> Html {
         html! {
             <div onkeypress=self.link.callback(Msg::KeyPressed)>
-                <div>{ self.progress_bar() }</div>
+                <div class="progress-bar">{ self.progress_bar() }</div>
                 <div>{ self.feedback.as_ref().unwrap_or(&"".to_owned()) }</div>
                 <div>{ self.problem_display() }</div>
                 <div class="flex demo">{ self.choices_display() }</div>

@@ -218,6 +218,7 @@ dependencies = [
  "getrandom",
  "js-sys",
  "rand",
+ "serde",
  "wasm-bindgen",
  "yew",
 ]
