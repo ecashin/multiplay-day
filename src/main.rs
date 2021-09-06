@@ -15,7 +15,7 @@ extern "C" {
 }
 
 const N_CHOICES: usize = 4;
-const MAX_FACTOR: usize = 12;
+const MAX_FACTOR: usize = 10;
 const SUFFICIENT: usize = 2;
 const FAST_MILLISECONDS: f64 = 2000.0;
 const SOUND_FILES: &'static [&'static str] = &[
@@ -30,11 +30,51 @@ const SOUND_FILES: &'static [&'static str] = &[
 ];
 const SOUNDS_DIR: &'static str = "sounds";
 // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
-const STORAGE_KEY: &'static str = "net.noserose.multiplay";
+const STORAGE_KEY_TALLY: &'static str = "net.noserose.multiplayday:tally";
+const STORAGE_KEY_TIMINGS: &'static str = "net.noserose.multiplayday:timings";
+const TIMINGS_HISTORY_LENGTH: usize = 5;
 
 enum Msg {
     ChoiceMade(usize),
     KeyPressed(KeyboardEvent),
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Timings {
+    response_time_history: Vec<Vec<Vec<f64>>>,
+}
+
+impl Timings {
+    fn new() -> Self {
+        let response_time_history =
+            vec![
+                vec![vec![FAST_MILLISECONDS * 2.0; TIMINGS_HISTORY_LENGTH]; MAX_FACTOR + 1];
+                MAX_FACTOR + 1
+            ];
+        Timings {
+            response_time_history,
+        }
+    }
+
+    fn record(&mut self, a: usize, b: usize, response_ms: Option<f64>) {
+        if let Some(response_ms) = response_ms {
+            self.response_time_history[a][b].insert(0, response_ms);
+            self.response_time_history[a][b].pop();
+        } else {
+            console_log(&format!("No response time for {}x{}", a, b));
+        }
+    }
+
+    fn median(&self, a: usize, b: usize) -> f64 {
+        let mut times = self.response_time_history[a][b].clone();
+        times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let middle = times.len() / 2;
+        if times.len() % 2 == 1 {
+            times[middle]
+        } else {
+            (times[middle] + times[middle - 1]) / 2.0
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -80,6 +120,7 @@ struct Model {
     storage: StorageService,
     tally: Tally,
     sounds: Vec<HtmlAudioElement>,
+    timings: Timings,
 }
 
 fn create_pairs_matrix() -> Vec<Vec<PairStatus>> {
@@ -138,15 +179,17 @@ impl Model {
     fn update_storage(&mut self, correct: bool) {
         let (a, b) = self.problem;
         self.tally.correct_counts[a][b] += if correct { 1 } else { -1 };
-        self.storage.store(STORAGE_KEY, Json(&self.tally));
+        self.storage.store(STORAGE_KEY_TALLY, Json(&self.tally));
+    }
+
+    fn response_time(&self) -> Option<f64> {
+        let start = self.prompt_time?;
+        Some(Date::now() - start)
     }
 
     fn update_pairs(&mut self, correct: bool) {
         let (a, b) = self.problem;
-        if correct
-            && self.prompt_time.is_some()
-            && Date::now() - self.prompt_time.unwrap() < FAST_MILLISECONDS
-        {
+        if correct && self.response_time().unwrap_or(FAST_MILLISECONDS * 2.0) < FAST_MILLISECONDS {
             self.pairs[a as usize][b as usize] = PairStatus::Finished;
         } else {
             let status = &self.pairs[a as usize][b as usize];
@@ -209,13 +252,22 @@ impl Model {
     }
 
     fn play(&self) {
-        let mut rng = thread_rng();
-        let i = rng.gen_range(0..SOUND_FILES.len());
-        let msg = match self.sounds[i].play() {
-            Ok(result) => format!("play {} success: {:?}", SOUND_FILES[i], result),
-            Err(e) => format!("play {} error: {:?}", SOUND_FILES[i], e),
-        };
-        console_log(&msg);
+        if let Some(resp_time) = self.response_time() {
+            let typical_resp_time = self.timings.median(self.problem.0, self.problem.1);
+            console_log(&format!(
+                "resp_time:{} vs typical:{}",
+                resp_time, typical_resp_time
+            ));
+            if resp_time < typical_resp_time {
+                let mut rng = thread_rng();
+                let i = rng.gen_range(0..SOUND_FILES.len());
+                let msg = match self.sounds[i].play() {
+                    Ok(result) => format!("play {} success: {:?}", SOUND_FILES[i], result),
+                    Err(e) => format!("play {} error: {:?}", SOUND_FILES[i], e),
+                };
+                console_log(&msg);
+            }
+        }
     }
 
     fn audio_elements(&self) -> Html {
@@ -255,14 +307,14 @@ fn choose_choices(rng: &mut ThreadRng, model: Option<&Model>) -> Vec<Problem> {
             })
             .flatten()
             .collect();
-        console_log(&format!("weighted_choices:{:?}", weighed_choices));
+        // console_log(&format!("weighted_choices:{:?}", weighed_choices));
         let mut chosen = vec![];
         for _ in 0..N_CHOICES {
             let i = rng.gen_range(0..weighed_choices.len());
             let pair_index = weighed_choices[i];
             chosen.push((pair_index / (MAX_FACTOR + 1), pair_index % (MAX_FACTOR + 1)));
         }
-        console_log(&format!("chosen:{:?}", chosen));
+        // console_log(&format!("chosen:{:?}", chosen));
         chosen
     } else {
         let mut choices = vec![];
@@ -291,8 +343,10 @@ impl Component for Model {
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let (problem, choices) = new_problem(None);
         let storage = StorageService::new(Area::Local).unwrap();
-        let Json(tally) = storage.restore(STORAGE_KEY);
+        let Json(tally) = storage.restore(STORAGE_KEY_TALLY);
         let tally = tally.unwrap_or(Tally::new()).valid_or_new();
+        let Json(timings) = storage.restore(STORAGE_KEY_TIMINGS);
+        let timings = timings.unwrap_or(Timings::new());
         let sounds = SOUND_FILES
             .iter()
             .map(|f| {
@@ -306,11 +360,12 @@ impl Component for Model {
             problem,
             choices,
             pairs: create_pairs_matrix(),
-            prompt_time: None,
+            prompt_time: Some(Date::now()),
             feedback: None,
             storage,
             tally,
             sounds,
+            timings,
         }
     }
 
@@ -323,6 +378,13 @@ impl Component for Model {
                 if correct {
                     self.play();
                 }
+                self.timings
+                    .record(self.problem.0, self.problem.1, self.response_time());
+                self.storage.store(STORAGE_KEY_TIMINGS, Json(&self.timings));
+                console_log(&format!(
+                    "times:{:?}",
+                    self.timings.response_time_history[self.problem.0][self.problem.1]
+                ));
                 self.history.push((self.problem, correct));
                 self.update_pairs(correct);
                 self.update_storage(correct);
