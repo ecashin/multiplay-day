@@ -28,6 +28,7 @@ const SOUND_FILES: &'static [&'static str] = &[
     "zuccini1.wav",
     "zuccini2.wav",
 ];
+const SOUNDS_DIR: &'static str = "sounds";
 // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
 const STORAGE_KEY: &'static str = "net.noserose.multiplay";
 
@@ -222,8 +223,9 @@ impl Model {
             .iter()
             .copied()
             .map(|f| {
+                let path = format!("{}/{}", SOUNDS_DIR, f);
                 html! {
-                    <audio src=f id=f preload="auto" crossorigin="anonymous"></audio>
+                    <audio src=path id=f preload="auto" crossorigin="anonymous"></audio>
                 }
             })
             .collect()
@@ -293,7 +295,10 @@ impl Component for Model {
         let tally = tally.unwrap_or(Tally::new()).valid_or_new();
         let sounds = SOUND_FILES
             .iter()
-            .map(|f| HtmlAudioElement::new_with_src(f).expect("Creating HtmlAudioElement"))
+            .map(|f| {
+                let path = format!("{}/{}", SOUNDS_DIR, f);
+                HtmlAudioElement::new_with_src(&path).expect("Creating HtmlAudioElement")
+            })
             .collect();
         Self {
             link,
