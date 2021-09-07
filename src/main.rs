@@ -440,7 +440,7 @@ impl Component for Model {
     fn view(&self) -> Html {
         html! {
             <div onkeypress=self.link.callback(Msg::KeyPressed)>
-                <div class="progress-bar">{ self.progress_bar() }</div>
+                <div class="progress-bar"><p>{ self.progress_bar() }</p></div>
                 <div>{ self.feedback.as_ref().unwrap_or(&"".to_owned()) }</div>
                 <div>{ self.problem_display() }</div>
                 <div><button onclick=self.link.callback(|_| Msg::ClearTimings)>{ "Clear Timings" }</button></div>
