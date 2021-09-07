@@ -221,25 +221,24 @@ impl Model {
         }
     }
 
-    fn matrix_row(&self, i: usize) -> Html {
-        self.pairs[i]
-            .iter()
-            .map(|pair| {
-                let html_class = match pair {
-                    PairStatus::Unknown => "unknown",
-                    PairStatus::InProgress(_) => "in-progress",
-                    PairStatus::Finished => "finished",
-                };
-                let html_content = match pair {
-                    PairStatus::Unknown => 0,
-                    PairStatus::InProgress(n) => std::cmp::max(*n, 0) as usize,
-                    PairStatus::Finished => SUFFICIENT,
-                };
-                html! {
-                    <td class=html_class>{ html_content }</td>
-                }
-            })
-            .collect()
+    fn matrix_row(&self, i: usize) -> Vec<Html> {
+        let mut cells = vec![html! { <td class="left-index">{ i }</td> }];
+        for pair in &self.pairs[i] {
+            let html_class = match pair {
+                PairStatus::Unknown => "unknown",
+                PairStatus::InProgress(_) => "in-progress",
+                PairStatus::Finished => "finished",
+            };
+            let html_content = match pair {
+                PairStatus::Unknown => 0,
+                PairStatus::InProgress(n) => std::cmp::max(*n, 0) as usize,
+                PairStatus::Finished => SUFFICIENT,
+            };
+            cells.push(html! {
+                <td class=html_class>{ html_content }</td>
+            });
+        }
+        cells
     }
 
     fn matrix_rows(&self) -> Html {
@@ -254,10 +253,27 @@ impl Model {
             .collect()
     }
 
+    fn matrix_header(&self) -> Vec<Html> {
+        let mut cells = vec![html! {
+            <th></th>
+        }];
+        for i in 0..=MAX_FACTOR {
+            cells.push(html! {
+                <th>{ i }</th>
+            });
+        }
+        cells
+    }
+
     fn matrix_display(&self) -> Html {
         html! {
             <table class="pairs-progress">
-                { self.matrix_rows() }
+                <thead>
+                    { self.matrix_header() }
+                </thead>
+                <tbody>
+                    { self.matrix_rows() }
+                </tbody>
             </table>
         }
     }
