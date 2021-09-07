@@ -37,6 +37,7 @@ const TIMINGS_HISTORY_LENGTH: usize = 5;
 enum Msg {
     ChoiceMade(usize),
     ClearTimings,
+    EnterGame(bool),
     KeyPressed(KeyboardEvent),
 }
 
@@ -132,6 +133,7 @@ struct Model {
     tally: Tally,
     sounds: Vec<HtmlAudioElement>,
     timings: Timings,
+    in_lobby: bool,
 }
 
 fn create_pairs_matrix() -> Vec<Vec<PairStatus>> {
@@ -399,6 +401,7 @@ impl Component for Model {
             tally,
             sounds,
             timings,
+            in_lobby: true,
         }
     }
 
@@ -432,6 +435,10 @@ impl Component for Model {
                 self.storage.store(STORAGE_KEY_TIMINGS, Json(&self.timings));
                 false
             }
+            Msg::EnterGame(yesno) => {
+                self.in_lobby = !yesno;
+                true
+            }
             Msg::KeyPressed(event) => {
                 console_log(&format!(
                     "KeyboardEvent:{:?} with key:{:?}",
@@ -460,16 +467,28 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html {
-        html! {
-            <div onkeypress=self.link.callback(Msg::KeyPressed)>
-                <div class="progress-bar"><p>{ self.progress_bar() }</p></div>
-                <div>{ self.feedback.as_ref().unwrap_or(&"".to_owned()) }</div>
-                <div>{ self.problem_display() }</div>
-                <div><button onclick=self.link.callback(|_| Msg::ClearTimings)>{ "Clear Timings" }</button></div>
-                <div class="flex demo">{ self.choices_display() }</div>
-                <div>{ self.matrix_display() }</div>
-                <div>{ self.audio_elements() }</div>
-            </div>
+        if self.in_lobby {
+            html! {
+                <div>
+                    <p>{ "IN LOBBY!" }</p>
+                    <button onclick=self.link.callback(|_| Msg::EnterGame(true))>{ "MKultilpcliashun" }</button>
+                </div>
+            }
+        } else {
+            html! {
+                <div onkeypress=self.link.callback(Msg::KeyPressed)>
+                    <div class="progress-bar"><p>{ self.progress_bar() }</p></div>
+                    <div>{ self.feedback.as_ref().unwrap_or(&"".to_owned()) }</div>
+                    <div>{ self.problem_display() }</div>
+                    <div>
+                        <button onclick=self.link.callback(|_| Msg::ClearTimings)>{ "Clear Timings" }</button>
+                        <button onclick=self.link.callback(|_| Msg::EnterGame(false))>{ "Lobby" }</button>
+                    </div>
+                    <div class="flex demo">{ self.choices_display() }</div>
+                    <div>{ self.matrix_display() }</div>
+                    <div>{ self.audio_elements() }</div>
+                </div>
+            }
         }
     }
 }
