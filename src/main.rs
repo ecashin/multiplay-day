@@ -15,7 +15,7 @@ extern "C" {
 }
 
 const N_CHOICES: usize = 4;
-const MAX_FACTOR: usize = 10;
+const MAX_FACTOR: usize = 12;
 const SUFFICIENT: usize = 2;
 const FAST_MILLISECONDS: f64 = 2000.0;
 const SOUND_FILES: &'static [&'static str] = &[
