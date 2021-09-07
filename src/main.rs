@@ -150,15 +150,21 @@ impl Model {
     fn progress_bar(&self) -> Html {
         let check = "✅";
         let x_mar = "❌";
-        let history_viz: Vec<&str> = self
+        let history_viz: Vec<Html> = self
             .history
             .iter()
             .copied()
-            .map(|(_, correct)| if correct { check } else { x_mar })
+            .map(|((a, b), correct)| {
+                html! {
+                    <span title=format!("{}x{}", a, b)>
+                        { if correct { check } else { x_mar } }
+                    </span>
+                }
+            })
             .collect();
         html! {
             <span class="progress-bar">
-                <p>{ history_viz.join("") }</p>
+                <p>{ history_viz }</p>
             </span>
         }
     }
