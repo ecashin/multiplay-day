@@ -39,6 +39,7 @@ enum Msg {
     ClearTimings,
     EnterGame(bool),
     KeyPressed(KeyboardEvent),
+    Pause,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -134,6 +135,7 @@ struct Model {
     sounds: Vec<HtmlAudioElement>,
     timings: Timings,
     in_lobby: bool,
+    paused_time: Option<f64>,
 }
 
 fn create_pairs_matrix() -> Vec<Vec<PairStatus>> {
@@ -432,6 +434,7 @@ impl Component for Model {
             sounds,
             timings,
             in_lobby: true,
+            paused_time: None,
         }
     }
 
@@ -455,6 +458,7 @@ impl Component for Model {
                 self.update_pairs(correct);
                 self.update_storage(correct);
                 self.prompt_time = Some(Date::now());
+                self.paused_time = None;
                 let (problem, choices) = new_problem(Some(self));
                 self.problem = problem;
                 self.choices = choices;
@@ -464,6 +468,17 @@ impl Component for Model {
                 self.timings = Timings::new();
                 self.storage.store(STORAGE_KEY_TIMINGS, Json(&self.timings));
                 false
+            }
+            Msg::Pause => {
+                if let Some(ms) = self.paused_time {
+                    if let Some(prompt_time) = self.prompt_time {
+                        self.prompt_time = Some(prompt_time + (Date::now() - ms));
+                    }
+                    self.paused_time = None;
+                } else {
+                    self.paused_time = Some(Date::now())
+                }
+                true
             }
             Msg::EnterGame(yesno) => {
                 self.in_lobby = !yesno;
@@ -505,12 +520,18 @@ impl Component for Model {
                 </div>
             }
         } else {
+            let pause_button_label = if self.paused_time.is_some() {
+                "Unpause"
+            } else {
+                "Pause"
+            };
             html! {
                 <div onkeypress=self.link.callback(Msg::KeyPressed)>
                     <div class="progress-bar"><p>{ self.progress_bar() }</p></div>
                     <div>{ self.feedback.as_ref().unwrap_or(&"".to_owned()) }</div>
                     <div>{ self.problem_display() }</div>
                     <div>
+                        <button onclick=self.link.callback(|_| Msg::Pause)>{ pause_button_label }</button>
                         <button onclick=self.link.callback(|_| Msg::ClearTimings)>{ "Clear Timings" }</button>
                         <button onclick=self.link.callback(|_| Msg::EnterGame(false))>{ "Lobby" }</button>
                     </div>
