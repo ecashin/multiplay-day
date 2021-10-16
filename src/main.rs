@@ -152,6 +152,27 @@ fn create_pairs_matrix() -> Vec<Vec<PairStatus>> {
 }
 
 impl Model {
+    fn color_grid(&self) -> Html {
+        let mut rows: Vec<_> = Vec::new();
+        for _ in 0..4 {
+            let mut row: Vec<_> = Vec::new();
+            for _ in 0..5 {
+                row.push(html! {
+                    <td>
+                        <img width="100" src="images/padlock.png"/>
+                    </td>
+                });
+            }
+            rows.push(html! {
+                <tr>{ row }</tr>
+            });
+        }
+        html! {
+            <table>
+                { rows }
+            </table>
+        }
+    }
     fn progress_bar(&self) -> Html {
         let check = "✅";
         let x_mar = "❌";
@@ -537,6 +558,11 @@ impl Component for Model {
                 <div>
                     <p>{ "IN LOBIEI!" }</p>
                     <button onclick=self.link.callback(|_| Msg::EnterGame(true))>{ "MKultilpcliashun" }</button>
+                    <div>{ self.color_grid() }</div>
+                    <p>
+                        <span>{ "Altered lock photo based on image by zimpenfish is licensed with CC BY 2.0. To view a copy of this license, visit " }</span>
+                        <a href="https://creativecommons.org/licenses/by/2.0/">{ "https://creativecommons.org/licenses/by/2.0/" }</a>
+                    </p>
                 </div>
             }
         } else {
