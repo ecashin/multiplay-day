@@ -195,6 +195,36 @@ impl Model {
             .collect()
     }
 
+    fn stats_display(&self) -> Html {
+        let rows: Vec<Html> = self
+            .timings
+            .response_time_history
+            .iter()
+            .map(|a| {
+                let cells: Vec<Html> = a
+                    .iter()
+                    .map(move |history| {
+                        let cell = Iterator::sum::<f64>(history.iter().copied())
+                            / if history.len() == 0 { 1 } else { history.len() } as f64;
+                        html! {
+                            <td>{ cell }</td>
+                        }
+                    })
+                    .collect();
+                html! {
+                    <tr>
+                        { cells }
+                    </tr>
+                }
+            })
+            .collect();
+        html! {
+            <table class="timings">
+                { rows }
+            </table>
+        }
+    }
+
     fn update_storage(&mut self, correct: bool) {
         let (a, b) = self.problem;
         self.tally.correct_counts[a][b] += if correct { 1 } else { -1 };
@@ -485,7 +515,10 @@ impl Component for Model {
                         <button onclick=self.link.callback(|_| Msg::EnterGame(false))>{ "Lobby" }</button>
                     </div>
                     <div class="flex demo">{ self.choices_display() }</div>
-                    <div>{ self.matrix_display() }</div>
+                    <div class="flex two demo">
+                        <div class="half">{ self.matrix_display() }</div>
+                        <div class="half">{ self.stats_display() }</div>
+                    </div>
                     <div>{ self.audio_elements() }</div>
                 </div>
             }
