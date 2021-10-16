@@ -136,6 +136,7 @@ struct Model {
     timings: Timings,
     in_lobby: bool,
     paused_time: Option<f64>,
+    last_problem: Option<Problem>,
 }
 
 fn create_pairs_matrix() -> Vec<Vec<PairStatus>> {
@@ -202,14 +203,31 @@ impl Model {
             .timings
             .response_time_history
             .iter()
-            .map(|a| {
-                let cells: Vec<Html> = a
+            .enumerate()
+            .map(|(a, row)| {
+                let cells: Vec<Html> = row
                     .iter()
-                    .map(move |history| {
-                        let cell = Iterator::sum::<f64>(history.iter().copied())
+                    .enumerate()
+                    .map(move |(b, history)| {
+                        let highlight = match self.last_problem {
+                            None => false,
+                            Some(problem) => problem.0 == a && problem.1 == b,
+                        };
+                        let mean = Iterator::sum::<f64>(history.iter().copied())
                             / if history.len() == 0 { 1 } else { history.len() } as f64;
-                        html! {
-                            <td>{ cell }</td>
+                        if highlight {
+                            let highlight_class = if history[0] < mean {
+                                "highlight-better"
+                            } else {
+                                "highlight-worse"
+                            };
+                            html! {
+                                <td class=highlight_class>{ mean }</td>
+                            }
+                        } else {
+                            html! {
+                                <td>{ mean }</td>
+                            }
                         }
                     })
                     .collect();
@@ -435,6 +453,7 @@ impl Component for Model {
             timings,
             in_lobby: true,
             paused_time: None,
+            last_problem: None,
         }
     }
 
@@ -443,6 +462,7 @@ impl Component for Model {
             Msg::ChoiceMade(response) => {
                 console_log(&format!("ChoiceMade:{}", response));
                 let answer = self.problem.0 * self.problem.1;
+                self.last_problem = Some(self.problem);
                 let correct = response == answer;
                 if correct {
                     self.play();
