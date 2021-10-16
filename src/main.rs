@@ -535,15 +535,15 @@ impl Component for Model {
         if self.in_lobby {
             html! {
                 <div>
-                    <p>{ "IN LOBBY!" }</p>
+                    <p>{ "IN LOBIEI!" }</p>
                     <button onclick=self.link.callback(|_| Msg::EnterGame(true))>{ "MKultilpcliashun" }</button>
                 </div>
             }
         } else {
             let pause_button_label = if self.paused_time.is_some() {
-                "Unpause"
+                "Unpassz"
             } else {
-                "Pause"
+                "Passzz"
             };
             html! {
                 <div onkeypress=self.link.callback(Msg::KeyPressed)>
@@ -552,8 +552,8 @@ impl Component for Model {
                     <div>{ self.problem_display() }</div>
                     <div>
                         <button onclick=self.link.callback(|_| Msg::Pause)>{ pause_button_label }</button>
-                        <button onclick=self.link.callback(|_| Msg::ClearTimings)>{ "Clear Timings" }</button>
-                        <button onclick=self.link.callback(|_| Msg::EnterGame(false))>{ "Lobby" }</button>
+                        <button onclick=self.link.callback(|_| Msg::ClearTimings)>{ "Cleaer Tiemings" }</button>
+                        <button onclick=self.link.callback(|_| Msg::EnterGame(false))>{ "Lobiei" }</button>
                     </div>
                     <div class="flex demo">{ self.choices_display() }</div>
                     <div class="flex two demo">
