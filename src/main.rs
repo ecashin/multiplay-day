@@ -487,7 +487,7 @@ impl Component for Model {
             Msg::ClearTimings => {
                 self.timings = Timings::new();
                 self.storage.store(STORAGE_KEY_TIMINGS, Json(&self.timings));
-                false
+                true
             }
             Msg::Pause => {
                 if let Some(ms) = self.paused_time {
